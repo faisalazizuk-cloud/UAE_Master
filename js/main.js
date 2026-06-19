@@ -740,32 +740,10 @@ function undoMove() {
 
 function flipBoard() {
     boardFlipped = !boardFlipped;
-    const targetAngle = boardFlipped ? Math.PI : 0;
-
-    // Animate camera rotation
-    const startAngle = boardFlipped ? 0 : Math.PI;
-    const duration = 800;
-    const startTime = performance.now();
-    const startCamPos = camera.position.clone();
-    const radius = Math.sqrt(startCamPos.x * startCamPos.x + startCamPos.z * startCamPos.z);
-    const startTheta = Math.atan2(startCamPos.z, startCamPos.x);
-
-    function flipStep(now) {
-        const elapsed = now - startTime;
-        const t = Math.min(elapsed / duration, 1);
-        const eased = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-
-        const theta = startTheta + (targetAngle - startAngle) * eased;
-        camera.position.x = radius * Math.cos(theta);
-        camera.position.z = radius * Math.sin(theta);
-        camera.lookAt(0, 0, 0);
-
-        if (t < 1) {
-            requestAnimationFrame(flipStep);
-        }
+    // Rotate orbit controls theta by PI to flip the view
+    if (window.orbitSpherical) {
+        window.orbitSpherical.target.theta += Math.PI;
     }
-
-    requestAnimationFrame(flipStep);
 }
 
 // ==================== Orbit Controls (Simple) ====================
@@ -775,6 +753,9 @@ function setupOrbitControls() {
     let previousMouse = { x: 0, y: 0 };
     let spherical = { radius: 14, theta: Math.PI / 4, phi: Math.PI / 3 };
     let targetSpherical = { ...spherical };
+
+    // Expose for flipBoard
+    window.orbitSpherical = { current: spherical, target: targetSpherical };
 
     function updateCamera() {
         spherical.radius += (targetSpherical.radius - spherical.radius) * 0.1;
