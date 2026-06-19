@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Rubik's Cube</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    overflow: hidden;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #fff;
+  }
+  #canvas-container { width: 100vw; height: 100vh; }
+  canvas { display: block; }
+
+  #controls {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 10;
+  }
+  #controls button {
+    padding: 12px 28px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  #controls button:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
+  #controls button:active { transform: translateY(0); }
+  #scrambleBtn { background: #e94560; color: #fff; }
+  #resetBtn { background: #0f3460; color: #fff; }
+
+  #info {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+  #info h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+  #info p { font-size: 14px; opacity: 0.7; }
+  #move-count {
+    position: fixed;
+    top: 20px;
+    right: 30px;
+    font-size: 16px;
+    z-index: 10;
+    opacity: 0.8;
+  }
+</style>
+</head>
+<body>
+
+<div id="info">
+  <h1>Rubik's Cube</h1>
+  <p>Click &amp; drag a face to rotate &bull; Right-click to orbit</p>
+</div>
+<div id="move-count">Moves: <span id="moves">0</span></div>
+<div id="canvas-container"></div>
+<div id="controls">
+  <button id="scrambleBtn">Scramble</button>
+  <button id="resetBtn">Reset</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+// ─── Constants ──────────────────────────────────────────────────────
+const CUBIE_SIZE = 1;
+const GAP = 0.06;
+const STEP = CUBIE_SIZE + GAP;
+const ANIM_SPEED = 0.12;
+const COLORS = {
+  right:  0xff0000,  // Red   (+x)
+  left:   0xff8c00,  // Orange (-x)
+  top:    0xffffff,  // White  (+y)
+  bottom: 0xffff00,  // Yellow (-y)
+  front:  0x00cc00,  // Green  (+z)
+  back:   0x0055ff,  // Blue   (-z)
+  inside: 0x1a1a1a,
+};
+
+const FACE_DEF = {
+  R: { axis: 'x', layer:  1, dir:  1 },
+  L: { axis: 'x', layer: -1, dir: -1 },
+  U: { axis: 'y', layer:  1, dir:  1 },
+  D: { axis: 'y', layer: -1, dir: -1 },
+  F: { axis: 'z', layer:  1, dir:  1 },
+  B: { axis: 'z', layer: -1, dir: -1 },
+};
+const FACE_NAMES = Object.keys(FACE_DEF);
+
+// ─── Scene Setup ────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(5, 4, 6);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+// Orbit controls — right-click / two-finger
+const orbit = new OrbitControls(camera, renderer.domElement);
+orbit.enableDamping = true;
+orbit.dampingFactor = 0.08;
+orbit.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+orbit.touches = { ONE: null, TWO: THREE.TOUCH.DOLLY_ROTATE };
+
+// Lighting
+scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(5, 10, 7);
+scene.add(dirLight);
+const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
+backLight.position.set(-5, -3, -5);
+scene.add(backLight);
+
+// ─── Build Cubies ───────────────────────────────────────────────────
+const cubies = [];
+const cubeGroup = new THREE.Group();
+scene.add(cubeGroup);
+
+function makeCubieMaterials(x, y, z) {
+  const cols = [
+    x ===  1 ? COLORS.right  : COLORS.inside,   // +x
+    x === -1 ? COLORS.left   : COLORS.inside,   // -x
+    y ===  1 ? COLORS.top    : COLORS.inside,   // +y
+    y === -1 ? COLORS.bottom : COLORS.inside,   // -y
+    z ===  1 ? COLORS.front  : COLORS.inside,   // +z
+    z === -1 ? COLORS.back   : COLORS.inside,   // -z
+  ];
+  return cols.map(c => new THREE.MeshStandardMaterial({
+    color: c,
+    roughness: 0.35,
+    metalness: 0.0,
+  }));
+}
+
+function buildCube() {
+  while (cubeGroup.children.length) cubeGroup.remove(cubeGroup.children[0]);
+  cubies.length = 0;
+
+  const geo = new RoundedBoxGeometry(CUBIE_SIZE, CUBIE_SIZE, CUBIE_SIZE, 4, 0.07);
+
+  for (let x = -1; x <= 1; x++) {
+    for (let y = -1; y <= 1; y++) {
+      for (let z = -1; z <= 1; z++) {
+        const mats = makeCubieMaterials(x, y, z);
+        const mesh = new THREE.Mesh(geo, mats);
+        mesh.position.set(x * STEP, y * STEP, z * STEP);
+        mesh.castShadow = true;
+        cubeGroup.add(mesh);
+        cubies.push(mesh);
+      }
+    }
+  }
+}
+buildCube();
+
+// ─── Layer Rotation Logic ───────────────────────────────────────────
+let animating = false;
+let moveCount = 0;
+const moveQueue = [];
+const movesEl = document.getElementById('moves');
+
+function getCubiesInLayer(axis, layer) {
+  const eps = 0.3;
+  return cubies.filter(c => Math.abs(c.position[axis] - layer * STEP) < eps);
+}
+
+function animateRotation(axis, layer, angle) {
+  animating = true;
+  const pivot = new THREE.Group();
+  const targets = getCubiesInLayer(axis, layer);
+  targets.forEach(c => { cubeGroup.remove(c); pivot.add(c); });
+  scene.add(pivot);
+
+  const target = angle;
+  let current = 0;
+
+  function tick() {
+    const remaining = target - current;
+    if (Math.abs(remaining) < 0.001) {
+      pivot.rotation[axis] = target;
+      pivot.updateMatrixWorld(true);
+      while (pivot.children.length) {
+        const child = pivot.children[0];
+        child.applyMatrix4(pivot.matrixWorld);
+        pivot.remove(child);
+        child.position.x = Math.round(child.position.x / STEP) * STEP;
+        child.position.y = Math.round(child.position.y / STEP) * STEP;
+        child.position.z = Math.round(child.position.z / STEP) * STEP;
+        cubeGroup.add(child);
+      }
+      scene.remove(pivot);
+      animating = false;
+      processQueue();
+      return;
+    }
+    const step = Math.sign(remaining) * Math.min(Math.abs(remaining), ANIM_SPEED);
+    current += step;
+    pivot.rotation[axis] = current;
+    requestAnimationFrame(tick);
+  }
+  tick();
+}
+
+function enqueueMove(face, prime) {
+  moveQueue.push({ face, prime });
+  if (!animating) processQueue();
+}
+
+function processQueue() {
+  if (moveQueue.length === 0) return;
+  const { face, prime } = moveQueue.shift();
+  const def = FACE_DEF[face];
+  const angle = (prime ? 1 : -1) * def.dir * Math.PI / 2;
+  moveCount++;
+  movesEl.textContent = moveCount;
+  animateRotation(def.axis, def.layer, angle);
+}
+
+// ─── Mouse / Touch Interaction ──────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let dragStart = null;
+let hitFaceNormal = null;
+let hitPoint = null;
+
+renderer.domElement.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || animating) return;
+
+  mouse.x = (e.clientX / innerWidth) * 2 - 1;
+  mouse.y = -(e.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  const hits = raycaster.intersectObjects(cubies);
+  if (hits.length === 0) return;
+
+  const hit = hits[0];
+  hitFaceNormal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).round();
+  hitPoint = hit.point.clone();
+  dragStart = new THREE.Vector2(e.clientX, e.clientY);
+  orbit.enabled = false;
+});
+
+renderer.domElement.addEventListener('pointermove', e => {
+  if (!dragStart) return;
+  const dx = e.clientX - dragStart.x;
+  const dy = e.clientY - dragStart.y;
+  if (Math.sqrt(dx * dx + dy * dy) < 30) return;
+
+  const dragDir = new THREE.Vector2(dx, -dy).normalize();
+  const move = determineFaceMove(hitFaceNormal, dragDir, hitPoint);
+  if (move) enqueueMove(move.face, move.prime);
+
+  dragStart = null;
+  hitFaceNormal = null;
+  hitPoint = null;
+  orbit.enabled = true;
+});
+
+renderer.domElement.addEventListener('pointerup', () => {
+  dragStart = null;
+  hitFaceNormal = null;
+  hitPoint = null;
+  orbit.enabled = true;
+});
+
+function projectToScreen(worldPos) {
+  const v = worldPos.clone().project(camera);
+  return new THREE.Vector2((v.x + 1) / 2 * innerWidth, (-v.y + 1) / 2 * innerHeight);
+}
+
+function determineFaceMove(normal, screenDrag, point) {
+  const absN = new THREE.Vector3(Math.abs(normal.x), Math.abs(normal.y), Math.abs(normal.z));
+
+  let tangent1, tangent2;
+  if (absN.x > 0.5)      { tangent1 = 'y'; tangent2 = 'z'; }
+  else if (absN.y > 0.5) { tangent1 = 'x'; tangent2 = 'z'; }
+  else                    { tangent1 = 'x'; tangent2 = 'y'; }
+
+  const origin = projectToScreen(new THREE.Vector3(0, 0, 0));
+  const p1 = new THREE.Vector3(); p1[tangent1] = 1;
+  const p2 = new THREE.Vector3(); p2[tangent2] = 1;
+  const screen1 = new THREE.Vector2().subVectors(projectToScreen(p1), origin).normalize();
+  const screen2 = new THREE.Vector2().subVectors(projectToScreen(p2), origin).normalize();
+
+  const dot1 = Math.abs(screenDrag.dot(screen1));
+  const dot2 = Math.abs(screenDrag.dot(screen2));
+
+  let sweepAxis, layerAxis, sweepScreen;
+  if (dot1 > dot2) {
+    sweepAxis = tangent1; layerAxis = tangent2; sweepScreen = screen1;
+  } else {
+    sweepAxis = tangent2; layerAxis = tangent1; sweepScreen = screen2;
+  }
+
+  const layerVal = Math.round(point[layerAxis] / STEP);
+
+  for (const [name, def] of Object.entries(FACE_DEF)) {
+    if (def.axis === layerAxis && def.layer === layerVal) {
+      const dotDir = screenDrag.dot(sweepScreen);
+      const normalSign = normal[absN.x > 0.5 ? 'x' : absN.y > 0.5 ? 'y' : 'z'];
+      const prime = (dotDir * normalSign > 0) !== (sweepAxis < layerAxis);
+      return { face: name, prime };
+    }
+  }
+
+  // Fallback: use the face the user clicked on
+  for (const [name, def] of Object.entries(FACE_DEF)) {
+    const v = new THREE.Vector3(); v[def.axis] = def.layer;
+    if (v.dot(normal) > 0.5) return { face: name, prime: screenDrag.x > 0 };
+  }
+  return null;
+}
+
+// ─── Keyboard Shortcuts ─────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (animating && moveQueue.length > 5) return;
+  const key = e.key.toUpperCase();
+  if (FACE_NAMES.includes(key)) enqueueMove(key, e.shiftKey);
+});
+
+// ─── Buttons ────────────────────────────────────────────────────────
+document.getElementById('scrambleBtn').addEventListener('click', () => {
+  moveCount = 0;
+  movesEl.textContent = '0';
+  for (let i = 0; i < 25; i++) {
+    const face = FACE_NAMES[Math.floor(Math.random() * FACE_NAMES.length)];
+    enqueueMove(face, Math.random() > 0.5);
+  }
+});
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  moveQueue.length = 0;
+  moveCount = 0;
+  movesEl.textContent = '0';
+  const waitAndReset = () => {
+    if (animating) { requestAnimationFrame(waitAndReset); return; }
+    buildCube();
+  };
+  waitAndReset();
+});
+
+// ─── Resize ─────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ─── Render Loop ────────────────────────────────────────────────────
+(function animate() {
+  requestAnimationFrame(animate);
+  orbit.update();
+  renderer.render(scene, camera);
+})();
+</script>
+</body>
+</html>
