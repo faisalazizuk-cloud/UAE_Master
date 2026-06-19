@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Chess</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="ui-overlay">
+            <div id="top-bar">
+                <div id="black-captured" class="captured-pieces">
+                    <span class="label">Captured by White:</span>
+                    <div class="pieces-list" id="black-captured-list"></div>
+                </div>
+                <div id="game-status">
+                    <div id="turn-indicator">
+                        <div id="turn-dot"></div>
+                        <span id="turn-text">White's Turn</span>
+                    </div>
+                    <div id="status-message"></div>
+                </div>
+                <div id="white-captured" class="captured-pieces">
+                    <span class="label">Captured by Black:</span>
+                    <div class="pieces-list" id="white-captured-list"></div>
+                </div>
+            </div>
+            <div id="side-panel">
+                <h3>Move History</h3>
+                <div id="move-history"></div>
+                <div id="controls">
+                    <button id="new-game-btn" onclick="resetGame()">New Game</button>
+                    <button id="undo-btn" onclick="undoMove()">Undo</button>
+                    <button id="flip-btn" onclick="flipBoard()">Flip Board</button>
+                </div>
+            </div>
+        </div>
+        <div id="canvas-container"></div>
+        <div id="promotion-modal" class="hidden">
+            <h3>Promote Pawn</h3>
+            <div id="promotion-options">
+                <button onclick="promoteToChoice('q')">Queen</button>
+                <button onclick="promoteToChoice('r')">Rook</button>
+                <button onclick="promoteToChoice('b')">Bishop</button>
+                <button onclick="promoteToChoice('n')">Knight</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="js/pieces.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
