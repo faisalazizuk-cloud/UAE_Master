@@ -7,7 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, case
 
 from app.database import get_db
 from app.models.trader import Trader, TraderCategory
@@ -91,7 +91,7 @@ def get_trader_holdings(slug: str, db: Session = Depends(get_db)):
             Trade.ticker,
             Trade.company_name,
             func.sum(
-                func.case(
+                case(
                     (Trade.action == "buy", Trade.shares),
                     else_=-Trade.shares,
                 )
@@ -99,7 +99,7 @@ def get_trader_holdings(slug: str, db: Session = Depends(get_db)):
         )
         .filter(Trade.trader_id == trader.id)
         .group_by(Trade.ticker, Trade.company_name)
-        .having(func.sum(func.case((Trade.action == "buy", Trade.shares), else_=-Trade.shares)) > 0)
+        .having(func.sum(case((Trade.action == "buy", Trade.shares), else_=-Trade.shares)) > 0)
         .all()
     )
 
