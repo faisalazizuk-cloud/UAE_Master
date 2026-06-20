@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import { Trophy, ArrowUpDown, Info } from "lucide-react";
+import { Trophy, ArrowUpDown, Info, ChevronDown, ChevronUp, TrendingUp, TrendingDown, BarChart2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,12 +30,174 @@ const SORT_OPTIONS = [
   { value: "name", label: "Name" },
 ];
 
+const TIME_PERIODS = ["1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"];
+
+interface PerformanceData {
+  trader_slug: string;
+  trader_name: string;
+  period: string;
+  data: { date: string; value: number }[];
+  summary: {
+    start_value: number;
+    end_value: number;
+    min_value: number;
+    max_value: number;
+    total_return: number;
+  };
+}
+
+function TraderPerformancePanel({ trader }: { trader: Trader }) {
+  const [period, setPeriod] = useState("1Y");
+  const [perfData, setPerfData] = useState<PerformanceData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    tradersApi
+      .getPerformance(trader.slug, period)
+      .then(setPerfData)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [trader.slug, period]);
+
+  useEffect(() => {
+    if (!perfData?.data?.length || !chartRef.current) return;
+
+    let cleanup: (() => void) | undefined;
+
+    import("lightweight-charts").then(({ createChart }) => {
+      const container = chartRef.current;
+      if (!container) return;
+
+      container.innerHTML = "";
+      const chart = createChart(container, {
+        width: container.clientWidth,
+        height: 250,
+        layout: {
+          background: { color: "transparent" },
+          textColor: "#9ca3af",
+        },
+        grid: {
+          vertLines: { color: "rgba(156, 163, 175, 0.1)" },
+          horzLines: { color: "rgba(156, 163, 175, 0.1)" },
+        },
+        crosshair: { mode: 0 },
+        rightPriceScale: { borderColor: "rgba(156, 163, 175, 0.2)" },
+        timeScale: { borderColor: "rgba(156, 163, 175, 0.2)" },
+      });
+
+      const isPositive = perfData.summary.total_return >= 0;
+      const color = isPositive ? "rgb(34, 197, 94)" : "rgb(239, 68, 68)";
+      const topColor = isPositive ? "rgba(34, 197, 94, 0.4)" : "rgba(239, 68, 68, 0.4)";
+      const bottomColor = isPositive ? "rgba(34, 197, 94, 0.0)" : "rgba(239, 68, 68, 0.0)";
+
+      const areaSeries = chart.addAreaSeries({
+        topColor,
+        bottomColor,
+        lineColor: color,
+        lineWidth: 2,
+      });
+
+      areaSeries.setData(
+        perfData.data.map((p) => ({
+          time: p.date as string,
+          value: p.value,
+        }))
+      );
+
+      chart.timeScale().fitContent();
+
+      const handleResize = () => {
+        if (container) chart.applyOptions({ width: container.clientWidth });
+      };
+      window.addEventListener("resize", handleResize);
+      cleanup = () => {
+        window.removeEventListener("resize", handleResize);
+        chart.remove();
+      };
+    });
+
+    return () => { if (cleanup) cleanup(); };
+  }, [perfData]);
+
+  return (
+    <div className="p-4 border-t bg-accent/20">
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <BarChart2 className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Profit Performance (%)</span>
+            </div>
+            <div className="flex gap-1">
+              {TIME_PERIODS.map((p) => (
+                <Button
+                  key={p}
+                  variant={period === p ? "default" : "ghost"}
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setPeriod(p)}
+                >
+                  {p}
+                </Button>
+              ))}
+            </div>
+          </div>
+          {loading ? (
+            <Skeleton className="h-[250px] w-full" />
+          ) : (
+            <div ref={chartRef} className="w-full" />
+          )}
+        </div>
+
+        <div className="lg:w-64 space-y-3">
+          <h4 className="text-sm font-medium text-muted-foreground">Period Summary</h4>
+          {perfData && (
+            <div className="grid grid-cols-2 lg:grid-cols-1 gap-2">
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Total Return</p>
+                <p className={`text-lg font-bold ${perfData.summary.total_return >= 0 ? "text-green-500" : "text-red-500"}`}>
+                  {perfData.summary.total_return >= 0 ? "+" : ""}
+                  {perfData.summary.total_return.toFixed(2)}%
+                </p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Peak</p>
+                <p className="text-lg font-bold text-green-500">
+                  +{perfData.summary.max_value.toFixed(2)}%
+                </p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Trough</p>
+                <p className="text-lg font-bold text-red-500">
+                  {perfData.summary.min_value.toFixed(2)}%
+                </p>
+              </div>
+              <div className="rounded-lg border p-3">
+                <p className="text-xs text-muted-foreground">Win Rate</p>
+                <p className="text-lg font-bold">{trader.win_rate.toFixed(1)}%</p>
+              </div>
+            </div>
+          )}
+          <Link href={`/trader/${trader.slug}`}>
+            <Button variant="outline" size="sm" className="w-full mt-2">
+              View Full Profile →
+            </Button>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LeaderboardPage() {
   const [traders, setTraders] = useState<Trader[]>([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("");
   const [sortBy, setSortBy] = useState("portfolio_roi_ytd");
   const [order, setOrder] = useState("desc");
+  const [expandedTrader, setExpandedTrader] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -62,6 +224,10 @@ export default function LeaderboardPage() {
       );
     }
     return null;
+  };
+
+  const toggleExpanded = (slug: string) => {
+    setExpandedTrader(expandedTrader === slug ? null : slug);
   };
 
   return (
@@ -157,55 +323,74 @@ export default function LeaderboardPage() {
                       </Tooltip>
                     </th>
                     <th className="p-4 text-right">Followers</th>
+                    <th className="p-4 w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {traders.map((trader, index) => (
-                    <tr
-                      key={trader.id}
-                      className="border-b last:border-0 hover:bg-accent/50 transition-colors"
-                    >
-                      <td className="p-4 text-muted-foreground">{index + 1}</td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/trader/${trader.slug}`}
-                            className="font-medium hover:underline"
-                          >
-                            {trader.name}
-                          </Link>
-                          {getTopBadge(index)}
-                          {trader.follower_count > 3000 && (
-                            <Badge variant="secondary" className="text-[10px]">
-                              Most Followed
-                            </Badge>
+                    <>
+                      <tr
+                        key={trader.id}
+                        className={`border-b hover:bg-accent/50 transition-colors cursor-pointer ${expandedTrader === trader.slug ? "bg-accent/30" : ""}`}
+                        onClick={() => toggleExpanded(trader.slug)}
+                      >
+                        <td className="p-4 text-muted-foreground">{index + 1}</td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <Link
+                              href={`/trader/${trader.slug}`}
+                              className="font-medium hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {trader.name}
+                            </Link>
+                            {getTopBadge(index)}
+                            {trader.follower_count > 3000 && (
+                              <Badge variant="secondary" className="text-[10px]">
+                                Most Followed
+                              </Badge>
+                            )}
+                          </div>
+                          {trader.fund_name && (
+                            <p className="text-xs text-muted-foreground">{trader.fund_name}</p>
                           )}
-                        </div>
-                        {trader.fund_name && (
-                          <p className="text-xs text-muted-foreground">{trader.fund_name}</p>
-                        )}
-                      </td>
-                      <td className="p-4 hidden md:table-cell">
-                        <Badge variant="outline" className={getCategoryColor(trader.category)}>
-                          {getCategoryLabel(trader.category)}
-                        </Badge>
-                      </td>
-                      <td className={`p-4 text-right font-medium ${trader.portfolio_roi_ytd >= 0 ? "text-green-500" : "text-red-500"}`}>
-                        {formatPercent(trader.portfolio_roi_ytd)}
-                      </td>
-                      <td className={`p-4 text-right hidden lg:table-cell ${trader.portfolio_roi_all_time >= 0 ? "text-green-500" : "text-red-500"}`}>
-                        {formatPercent(trader.portfolio_roi_all_time)}
-                      </td>
-                      <td className="p-4 text-right hidden md:table-cell">
-                        {trader.win_rate.toFixed(1)}%
-                      </td>
-                      <td className="p-4 text-right hidden lg:table-cell text-muted-foreground">
-                        {trader.avg_holding_period_days}d
-                      </td>
-                      <td className="p-4 text-right text-muted-foreground">
-                        {trader.follower_count.toLocaleString()}
-                      </td>
-                    </tr>
+                        </td>
+                        <td className="p-4 hidden md:table-cell">
+                          <Badge variant="outline" className={getCategoryColor(trader.category)}>
+                            {getCategoryLabel(trader.category)}
+                          </Badge>
+                        </td>
+                        <td className={`p-4 text-right font-medium ${trader.portfolio_roi_ytd >= 0 ? "text-green-500" : "text-red-500"}`}>
+                          {formatPercent(trader.portfolio_roi_ytd)}
+                        </td>
+                        <td className={`p-4 text-right hidden lg:table-cell ${trader.portfolio_roi_all_time >= 0 ? "text-green-500" : "text-red-500"}`}>
+                          {formatPercent(trader.portfolio_roi_all_time)}
+                        </td>
+                        <td className="p-4 text-right hidden md:table-cell">
+                          {trader.win_rate.toFixed(1)}%
+                        </td>
+                        <td className="p-4 text-right hidden lg:table-cell text-muted-foreground">
+                          {trader.avg_holding_period_days}d
+                        </td>
+                        <td className="p-4 text-right text-muted-foreground">
+                          {trader.follower_count.toLocaleString()}
+                        </td>
+                        <td className="p-4">
+                          {expandedTrader === trader.slug ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </td>
+                      </tr>
+                      {expandedTrader === trader.slug && (
+                        <tr key={`${trader.id}-expanded`}>
+                          <td colSpan={9}>
+                            <TraderPerformancePanel trader={trader} />
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   ))}
                 </tbody>
               </table>

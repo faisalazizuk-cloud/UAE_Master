@@ -65,6 +65,20 @@ export const tradersApi = {
     apiFetch<{ ticker: string; company_name: string; shares: number }[]>(
       `/api/traders/${slug}/holdings`
     ),
+  getPerformance: (slug: string, period: string = "1Y") =>
+    apiFetch<{
+      trader_slug: string;
+      trader_name: string;
+      period: string;
+      data: { date: string; value: number }[];
+      summary: {
+        start_value: number;
+        end_value: number;
+        min_value: number;
+        max_value: number;
+        total_return: number;
+      };
+    }>(`/api/traders/${slug}/performance?period=${period}`),
   create: (data: Record<string, unknown>, token: string) =>
     apiFetch<import("@/types").Trader>("/api/traders", {
       method: "POST",

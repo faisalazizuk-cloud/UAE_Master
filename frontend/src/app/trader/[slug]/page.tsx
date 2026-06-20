@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -13,6 +13,7 @@ import {
   Info,
   ExternalLink,
   Award,
+  BarChart2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +30,146 @@ import {
   getCategoryColor,
 } from "@/lib/utils";
 import type { Trader, Trade } from "@/types";
+
+const TIME_PERIODS = ["1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"];
+
+function PerformanceChart({ slug }: { slug: string }) {
+  const [period, setPeriod] = useState("1Y");
+  const [perfData, setPerfData] = useState<{
+    data: { date: string; value: number }[];
+    summary: { start_value: number; end_value: number; min_value: number; max_value: number; total_return: number };
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    tradersApi
+      .getPerformance(slug, period)
+      .then(setPerfData)
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [slug, period]);
+
+  useEffect(() => {
+    if (!perfData?.data?.length || !chartRef.current) return;
+
+    let cleanup: (() => void) | undefined;
+
+    import("lightweight-charts").then(({ createChart }) => {
+      const container = chartRef.current;
+      if (!container) return;
+
+      container.innerHTML = "";
+      const chart = createChart(container, {
+        width: container.clientWidth,
+        height: 300,
+        layout: {
+          background: { color: "transparent" },
+          textColor: "#9ca3af",
+        },
+        grid: {
+          vertLines: { color: "rgba(156, 163, 175, 0.1)" },
+          horzLines: { color: "rgba(156, 163, 175, 0.1)" },
+        },
+        crosshair: { mode: 0 },
+        rightPriceScale: { borderColor: "rgba(156, 163, 175, 0.2)" },
+        timeScale: { borderColor: "rgba(156, 163, 175, 0.2)" },
+      });
+
+      const isPositive = perfData.summary.total_return >= 0;
+      const color = isPositive ? "rgb(34, 197, 94)" : "rgb(239, 68, 68)";
+      const topColor = isPositive ? "rgba(34, 197, 94, 0.4)" : "rgba(239, 68, 68, 0.4)";
+      const bottomColor = isPositive ? "rgba(34, 197, 94, 0.0)" : "rgba(239, 68, 68, 0.0)";
+
+      const areaSeries = chart.addAreaSeries({
+        topColor,
+        bottomColor,
+        lineColor: color,
+        lineWidth: 2,
+      });
+
+      areaSeries.setData(
+        perfData.data.map((p) => ({
+          time: p.date as string,
+          value: p.value,
+        }))
+      );
+
+      chart.timeScale().fitContent();
+
+      const handleResize = () => {
+        if (container) chart.applyOptions({ width: container.clientWidth });
+      };
+      window.addEventListener("resize", handleResize);
+      cleanup = () => {
+        window.removeEventListener("resize", handleResize);
+        chart.remove();
+      };
+    });
+
+    return () => { if (cleanup) cleanup(); };
+  }, [perfData]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <BarChart2 className="h-5 w-5" />
+            Profit Performance (%)
+          </CardTitle>
+          <div className="flex gap-1">
+            {TIME_PERIODS.map((p) => (
+              <Button
+                key={p}
+                variant={period === p ? "default" : "ghost"}
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={() => setPeriod(p)}
+              >
+                {p}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <Skeleton className="h-[300px] w-full" />
+        ) : (
+          <>
+            <div ref={chartRef} className="w-full" />
+            {perfData && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t">
+                <div>
+                  <p className="text-xs text-muted-foreground">Total Return</p>
+                  <p className={`text-lg font-bold ${perfData.summary.total_return >= 0 ? "text-green-500" : "text-red-500"}`}>
+                    {perfData.summary.total_return >= 0 ? "+" : ""}{perfData.summary.total_return.toFixed(2)}%
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Peak</p>
+                  <p className="text-lg font-bold text-green-500">+{perfData.summary.max_value.toFixed(2)}%</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Trough</p>
+                  <p className="text-lg font-bold text-red-500">{perfData.summary.min_value.toFixed(2)}%</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Period Range</p>
+                  <p className="text-lg font-bold">
+                    {(perfData.summary.max_value - perfData.summary.min_value).toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function TraderProfilePage() {
   const params = useParams();
@@ -224,6 +365,8 @@ export default function TraderProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      <PerformanceChart slug={slug} />
 
       {holdings.length > 0 && (
         <Card>
