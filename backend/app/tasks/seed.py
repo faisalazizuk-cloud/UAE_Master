@@ -72,6 +72,19 @@ TIER_4_CONGRESS = [
     {"name": "Josh Gottheimer", "bio": "US Representative from New Jersey. Active trader with diverse portfolio."},
 ]
 
+TIER_1_EXPLOSIVE_GROWTH = [
+    {"name": "Chamath Palihapitiya", "fund_name": "Social Capital", "sec_cik": "", "strategy_style": "Explosive Growth / SPACs", "bio": "Founder of Social Capital. Former Facebook VP turned venture capitalist. Known for aggressive growth bets via SPACs and early-stage tech (Slack, Box, Virgin Galactic)."},
+    {"name": "Peter Thiel", "fund_name": "Founders Fund", "sec_cik": "", "strategy_style": "Contrarian Growth", "bio": "PayPal co-founder and Founders Fund partner. First outside investor in Facebook. Bets big on contrarian, world-changing companies (Palantir, SpaceX, Anduril)."},
+    {"name": "Masayoshi Son", "fund_name": "SoftBank Vision Fund", "sec_cik": "", "strategy_style": "Mega-Bet Growth", "bio": "Founder of SoftBank Group. Runs the $100B Vision Fund making massive bets on transformative tech. Early investor in Alibaba, ARM, Uber, WeWork, DoorDash."},
+    {"name": "Gavin Baker", "fund_name": "Atreides Management", "sec_cik": "1819410", "strategy_style": "Concentrated Tech Growth", "bio": "Founder of Atreides Management. Former Fidelity star who runs concentrated positions in high-growth tech. Known for deep research and explosive conviction bets."},
+    {"name": "Dan Sundheim", "fund_name": "D1 Capital Partners", "sec_cik": "1785526", "strategy_style": "Tech/Growth Crossover", "bio": "Founder of D1 Capital Partners. Former Viking Global CIO. Combines public and private market growth investing with positions in the fastest-growing tech companies."},
+    {"name": "Nancy Zevenbergen", "fund_name": "Zevenbergen Capital", "sec_cik": "1029708", "strategy_style": "Aggressive Growth", "bio": "Founder of Zevenbergen Capital Investments. Pure aggressive growth investor. Early and big in Tesla, Shopify, Roku, and other hypergrowth names."},
+    {"name": "Ron Baron", "fund_name": "Baron Capital", "sec_cik": "1077275", "strategy_style": "Long-Term Growth Compounder", "bio": "Founder of Baron Capital Group. Made billions holding explosive growth companies for decades. Famous early Tesla investor who turned $380M into $6B+."},
+    {"name": "James Anderson", "fund_name": "Baillie Gifford / Lingotto", "sec_cik": "", "strategy_style": "Exponential Growth", "bio": "Former head of Baillie Gifford's flagship fund, now at Lingotto. Pioneer of 'growth investing at scale'. Early backer of Tesla, Amazon, Moderna, Illumina."},
+    {"name": "Keith Gill", "fund_name": "", "strategy_style": "Deep Value → Explosive Growth", "bio": "Known as 'Roaring Kitty' and 'DeepF***ingValue'. Turned $53K into $48M+ on GameStop. Embodies the explosive retail growth investor who does deep research and holds through volatility."},
+    {"name": "Steve Mandel", "fund_name": "Lone Pine Capital", "sec_cik": "1061165", "strategy_style": "Quality Growth", "bio": "Founder of Lone Pine Capital, a Tiger Cub hedge fund. Focuses on high-quality growth companies with strong competitive moats and rapid earnings growth."},
+]
+
 TIER_6_MANUAL = [
     {
         "name": "Leopold Aschenbrenner",
@@ -96,6 +109,17 @@ SAMPLE_TRADES = [
     {"ticker": "SOFI", "company_name": "SoFi Technologies", "action": "buy", "shares": 200000, "price": 10.00},
     {"ticker": "AMD", "company_name": "Advanced Micro Devices", "action": "buy", "shares": 15000, "price": 165.00},
     {"ticker": "NFLX", "company_name": "Netflix Inc.", "action": "sell", "shares": 5000, "price": 680.00},
+    {"ticker": "SHOP", "company_name": "Shopify Inc.", "action": "buy", "shares": 20000, "price": 85.00},
+    {"ticker": "ROKU", "company_name": "Roku Inc.", "action": "buy", "shares": 30000, "price": 70.00},
+    {"ticker": "COIN", "company_name": "Coinbase Global", "action": "buy", "shares": 15000, "price": 260.00},
+    {"ticker": "CRWD", "company_name": "CrowdStrike Holdings", "action": "buy", "shares": 12000, "price": 350.00},
+    {"ticker": "SNOW", "company_name": "Snowflake Inc.", "action": "buy", "shares": 18000, "price": 170.00},
+    {"ticker": "DDOG", "company_name": "Datadog Inc.", "action": "buy", "shares": 25000, "price": 130.00},
+    {"ticker": "NET", "company_name": "Cloudflare Inc.", "action": "buy", "shares": 35000, "price": 95.00},
+    {"ticker": "GME", "company_name": "GameStop Corp.", "action": "buy", "shares": 100000, "price": 25.00},
+    {"ticker": "MSTR", "company_name": "MicroStrategy Inc.", "action": "buy", "shares": 5000, "price": 1800.00},
+    {"ticker": "ARM", "company_name": "ARM Holdings", "action": "buy", "shares": 10000, "price": 150.00},
+    {"ticker": "SMCI", "company_name": "Super Micro Computer", "action": "buy", "shares": 8000, "price": 40.00},
 ]
 
 
@@ -191,6 +215,26 @@ def seed_database():
                 portfolio_roi_all_time=round(random.uniform(30, 300), 2),
                 win_rate=round(random.uniform(55, 85), 1),
                 follower_count=random.randint(200, 8000),
+            )
+            db.add(trader)
+            all_traders.append(trader)
+
+        # Seed Explosive Growth Investors
+        for data in TIER_1_EXPLOSIVE_GROWTH:
+            trader = Trader(
+                name=data["name"],
+                slug=slugify(data["name"]),
+                category=TraderCategory.HEDGE_FUND,
+                tier=1,
+                bio=data.get("bio", ""),
+                fund_name=data.get("fund_name", ""),
+                strategy_style=data.get("strategy_style", ""),
+                sec_cik=data.get("sec_cik", ""),
+                portfolio_roi_ytd=round(random.uniform(15, 80), 2),
+                portfolio_roi_all_time=round(random.uniform(200, 1500), 2),
+                win_rate=round(random.uniform(40, 70), 1),
+                avg_holding_period_days=random.randint(30, 730),
+                follower_count=random.randint(2000, 15000),
             )
             db.add(trader)
             all_traders.append(trader)
