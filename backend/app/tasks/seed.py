@@ -91,6 +91,26 @@ TIER_6_MANUAL = [
         "bio": "Former OpenAI researcher and author of 'Situational Awareness'. Known for his views on AI and technology investments.",
         "strategy_style": "AI/Technology Focus",
     },
+    {"name": "Donald Trump", "strategy_style": "Brand-Driven / Real Estate to Crypto", "bio": "45th and 47th President of the United States. Launched Trump Media (DJT), promoted crypto projects including World Liberty Financial and $TRUMP meme coin. Massive influence on market sentiment."},
+    {"name": "Elon Musk", "strategy_style": "Visionary / Concentrated Bets", "bio": "CEO of Tesla and SpaceX, owner of X (Twitter). Known for market-moving tweets, massive personal stakes in Tesla, and influence on crypto (Dogecoin). World's richest person."},
+    {"name": "Vivek Ramaswamy", "strategy_style": "Biotech / Political Insider", "bio": "Former biotech CEO (Roivant Sciences) turned political figure. Co-led DOGE initiative. Known for pharma industry investments and contrarian public market bets."},
+    {"name": "Jared Kushner", "strategy_style": "Real Estate / Private Equity", "bio": "Former Senior Advisor to President Trump. Runs Affinity Partners, a $3B private equity fund with significant Middle East sovereign wealth backing."},
+    {"name": "Mark Cuban", "strategy_style": "Tech / Shark Tank Ventures", "bio": "Billionaire entrepreneur, former owner of Dallas Mavericks. Active public market trader and startup investor via Shark Tank. Known for crypto and pharma positions."},
+    {"name": "Michael Saylor", "strategy_style": "Bitcoin Maximalist", "bio": "Executive Chairman of MicroStrategy (now Strategy). Converted company treasury into Bitcoin, holding 200K+ BTC. The most aggressive corporate Bitcoin bull."},
+]
+
+TIER_4_CONGRESS_EXTRA = [
+    {"name": "Robert F. Kennedy Jr.", "bio": "Secretary of Health and Human Services. Known for contrarian health sector views. Financial disclosures reveal significant stock positions across pharma and tech."},
+]
+
+TIER_5_CORPORATE_INSIDERS = [
+    {"name": "Jamie Dimon", "strategy_style": "Banking / Financial Services", "bio": "CEO of JPMorgan Chase, the largest US bank. His personal JPM stock purchases are closely watched as signals of confidence in the financial sector."},
+    {"name": "Jensen Huang", "strategy_style": "AI / Semiconductors", "bio": "CEO and co-founder of NVIDIA. His stock sales and options exercises are closely monitored as indicators of AI sector confidence."},
+    {"name": "Mark Zuckerberg", "strategy_style": "Social Media / Metaverse / AI", "bio": "CEO of Meta Platforms. His insider transactions in META stock are widely tracked."},
+    {"name": "Tim Cook", "strategy_style": "Consumer Tech", "bio": "CEO of Apple Inc. His systematic AAPL stock sales and option exercises are among the most-watched insider transactions in the market."},
+    {"name": "Satya Nadella", "strategy_style": "Enterprise Cloud / AI", "bio": "CEO of Microsoft. Transformed MSFT into a cloud and AI powerhouse. His insider sales of MSFT stock are closely followed."},
+    {"name": "Andy Jassy", "strategy_style": "E-Commerce / Cloud / AI", "bio": "CEO of Amazon. Former AWS chief who took over from Bezos. His AMZN insider transactions signal confidence in Amazon's strategy."},
+    {"name": "Lisa Su", "strategy_style": "Semiconductors / AI", "bio": "CEO of AMD. Turned AMD from near-bankruptcy into an AI chip contender. Her AMD stock transactions are closely tracked."},
 ]
 
 SAMPLE_TRADES = [
@@ -239,7 +259,7 @@ def seed_database():
             db.add(trader)
             all_traders.append(trader)
 
-        # Seed Tier 6: Manual Entry
+        # Seed Tier 6: Manual Entry (includes political insiders like Trump, Musk, etc.)
         for data in TIER_6_MANUAL:
             trader = Trader(
                 name=data["name"],
@@ -248,7 +268,46 @@ def seed_database():
                 tier=6,
                 bio=data.get("bio", ""),
                 strategy_style=data.get("strategy_style", ""),
-                follower_count=random.randint(50, 1000),
+                portfolio_roi_ytd=round(random.uniform(10, 65), 2),
+                portfolio_roi_all_time=round(random.uniform(100, 800), 2),
+                win_rate=round(random.uniform(45, 75), 1),
+                avg_holding_period_days=random.randint(30, 1200),
+                follower_count=random.randint(5000, 50000),
+            )
+            db.add(trader)
+            all_traders.append(trader)
+
+        # Seed extra Congressional insiders
+        for data in TIER_4_CONGRESS_EXTRA:
+            trader = Trader(
+                name=data["name"],
+                slug=slugify(data["name"]),
+                category=TraderCategory.CONGRESSIONAL,
+                tier=4,
+                bio=data.get("bio", ""),
+                strategy_style="Health / Contrarian",
+                portfolio_roi_ytd=round(random.uniform(10, 45), 2),
+                portfolio_roi_all_time=round(random.uniform(50, 300), 2),
+                win_rate=round(random.uniform(50, 75), 1),
+                follower_count=random.randint(5000, 30000),
+            )
+            db.add(trader)
+            all_traders.append(trader)
+
+        # Seed Tier 5: Corporate Insiders (CEOs — Jensen Huang, Zuckerberg, etc.)
+        for data in TIER_5_CORPORATE_INSIDERS:
+            trader = Trader(
+                name=data["name"],
+                slug=slugify(data["name"]),
+                category=TraderCategory.CORPORATE_INSIDER,
+                tier=5,
+                bio=data.get("bio", ""),
+                strategy_style=data.get("strategy_style", ""),
+                portfolio_roi_ytd=round(random.uniform(10, 50), 2),
+                portfolio_roi_all_time=round(random.uniform(100, 600), 2),
+                win_rate=round(random.uniform(55, 80), 1),
+                avg_holding_period_days=random.randint(180, 1800),
+                follower_count=random.randint(5000, 40000),
             )
             db.add(trader)
             all_traders.append(trader)
