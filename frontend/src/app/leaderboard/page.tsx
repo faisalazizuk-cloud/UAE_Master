@@ -204,7 +204,7 @@ export default function LeaderboardPage() {
     const params: Record<string, string> = {
       sort_by: sortBy,
       order,
-      limit: "50",
+      limit: "100",
     };
     if (category) params.category = category;
 
