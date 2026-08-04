@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>بلوت 3D — Baloot 3D</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&display=swap" rel="stylesheet" />
+  <style>
+    :root { --gold:#e9c46a; --green:#1f7d4a; --dark:#15100c; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; font-family: 'Cairo', system-ui, sans-serif; background: var(--dark); }
+    #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+    .hud { position: fixed; inset: 0; pointer-events: none; color: #fff; }
+    .scorebar {
+      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 10px; align-items: center; background: rgba(0,0,0,.45);
+      border: 1px solid rgba(233,196,106,.4); border-radius: 14px; padding: 8px 16px;
+      backdrop-filter: blur(6px);
+    }
+    .team { text-align: center; min-width: 70px; }
+    .team .lbl { font-size: 12px; opacity: .8; }
+    .team .val { font-size: 26px; font-weight: 800; color: var(--gold); }
+    .vs { opacity: .5; }
+    .contract-box { text-align:center; padding: 0 10px; border-inline-start:1px solid rgba(255,255,255,.2); }
+    .contract-box .lbl { font-size:11px; opacity:.7; }
+    .contract-box .val { font-size:18px; font-weight:700; }
+
+    .msg {
+      position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,.5); padding: 10px 22px; border-radius: 30px;
+      font-size: 18px; font-weight: 600; border: 1px solid rgba(233,196,106,.35);
+      max-width: 90vw; text-align: center;
+    }
+
+    .turn-indicators { position:absolute; inset:0; }
+    .dot { position:absolute; width:12px; height:12px; border-radius:50%; background:#555;
+      border:2px solid rgba(255,255,255,.4); transition:.2s; }
+    .dot.active { background: var(--gold); box-shadow:0 0 16px var(--gold); transform:scale(1.5); }
+    #turn0 { bottom:16%; left:50%; }
+    #turn1 { top:50%; left:8%; }
+    #turn2 { top:14%; left:50%; }
+    #turn3 { top:50%; right:8%; left:auto; }
+
+    .name-tag { position:absolute; font-size:13px; opacity:.85; background:rgba(0,0,0,.35);
+      padding:3px 12px; border-radius:20px; }
+    #n0 { bottom:10%; left:50%; transform:translateX(-50%); }
+    #n1 { top:50%; left:2%; }
+    #n2 { top:8%; left:50%; transform:translateX(-50%); }
+    #n3 { top:50%; right:2%; }
+
+    .bid-panel {
+      position: absolute; bottom: 12%; left: 50%; transform: translateX(-50%) translateY(30px);
+      background: rgba(15,20,15,.92); border:1px solid var(--gold); border-radius:18px;
+      padding: 16px 20px; text-align:center; pointer-events:auto; opacity:0; transition:.25s;
+      min-width: 300px;
+    }
+    .bid-panel.show { opacity:1; transform: translateX(-50%) translateY(0); }
+    .bid-panel h3 { margin-bottom:12px; color:var(--gold); font-weight:700; }
+    .bid-btns { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+    .bid-btns button, .card-panel button, #startBtn {
+      pointer-events:auto; cursor:pointer; font-family:inherit; font-weight:700; font-size:16px;
+      padding: 10px 18px; border-radius:12px; border:none; background:var(--gold); color:#3a2a00;
+      transition:.15s;
+    }
+    .bid-btns button:hover, .card-panel button:hover, #startBtn:hover { filter:brightness(1.1); transform:translateY(-2px); }
+
+    .overlay {
+      position: fixed; inset:0; display:none; align-items:center; justify-content:center;
+      background: radial-gradient(circle at center, rgba(20,40,25,.6), rgba(0,0,0,.88));
+      pointer-events:auto; z-index:20;
+    }
+    .overlay.show { display:flex; }
+    .card-panel { background: linear-gradient(160deg,#1c2b20,#0c130d); border:2px solid var(--gold);
+      border-radius:22px; padding:40px 48px; text-align:center; max-width:440px; }
+    .card-panel h1 { font-size:42px; color:var(--gold); margin-bottom:8px; }
+    .card-panel p { opacity:.9; margin-bottom:8px; line-height:1.7; }
+    .card-panel .sub { font-size:14px; opacity:.7; margin-bottom:22px; }
+    #startBtn { font-size:20px; padding:14px 40px; margin-top:10px; }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <div class="hud">
+    <div class="scorebar">
+      <div class="team"><div class="lbl">لنا (أنت + الشمال)</div><div class="val" id="scoreA">0</div></div>
+      <div class="vs">―</div>
+      <div class="team"><div class="lbl">علينا</div><div class="val" id="scoreB">0</div></div>
+      <div class="contract-box"><div class="lbl">العقد</div><div class="val" id="contract">—</div></div>
+    </div>
+
+    <div class="turn-indicators">
+      <div class="dot" id="turn0"></div>
+      <div class="dot" id="turn1"></div>
+      <div class="dot" id="turn2"></div>
+      <div class="dot" id="turn3"></div>
+    </div>
+    <div class="name-tag" id="n0">أنت</div>
+    <div class="name-tag" id="n1">الغرب</div>
+    <div class="name-tag" id="n2">الشمال (شريكك)</div>
+    <div class="name-tag" id="n3">الشرق</div>
+
+    <div class="msg" id="msg">مرحباً بك في البلوت</div>
+
+    <div class="bid-panel" id="bidPanel">
+      <h3 id="bidTitle">المزايدة</h3>
+      <div class="bid-btns" id="bidBtns"></div>
+    </div>
+  </div>
+
+  <div class="overlay show" id="overlay">
+    <div class="card-panel">
+      <h1>بلوت 3D</h1>
+      <p>لعبة البلوت الكلاسيكية بثلاثة أبعاد</p>
+      <p class="sub">أنت وشريكك (الشمال) ضد الغرب والشرق — أول فريق يصل 152 يفوز<br>حكم أو صن، اختر ورقتك بالضغط عليها</p>
+      <button id="startBtn">ابدأ اللعب</button>
+    </div>
+  </div>
+
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.js" } }
+  </script>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
